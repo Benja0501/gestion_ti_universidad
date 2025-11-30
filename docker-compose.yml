@@ -1,0 +1,112 @@
+# docker-compose.yml
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    container_name: ti_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ti_management
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - backend_network
+    ports:
+      - "5432:5432"
+
+  equipos_service:
+    build: ./equipos_service
+    container_name: equipos_service
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ti_management
+      POSTGRES_HOST: db
+    depends_on:
+      - db
+    networks:
+      - backend_network
+    
+  proveedores_service:
+    build: ./proveedores_service
+    container_name: proveedores_service
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ti_management
+      POSTGRES_HOST: db
+    depends_on:
+      - db
+    networks:
+      - backend_network
+  mantenimiento_service:
+    build: ./mantenimiento_service
+    container_name: mantenimiento_service
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ti_management
+      POSTGRES_HOST: db
+    depends_on:
+      - db
+    networks:
+      - backend_network
+  reportes_service:
+    build: ./reportes_service
+    container_name: reportes_service
+    environment:
+      EQUIPOS_SERVICE_URL: http://equipos_service:8001
+      MANTENIMIENTO_SERVICE_URL: http://mantenimiento_service:8003
+    depends_on:
+      - equipos_service
+      - mantenimiento_service
+    networks:
+      - backend_network
+  agent_service:
+    build: ./agent_service
+    container_name: agent_service
+    environment:
+      EQUIPOS_SERVICE_URL: http://equipos_service:8001
+      MANTENIMIENTO_SERVICE_URL: http://mantenimiento_service:8003
+    depends_on:
+      - equipos_service
+      - mantenimiento_service
+    networks:
+      - backend_network
+
+  api_gateway:
+    build: ./api_gateway
+    container_name: api_gateway
+    environment:
+      EQUIPOS_SERVICE_URL: http://equipos_service:8001
+      PROVEEDORES_SERVICE_URL: http://proveedores_service:8002
+      MANTENIMIENTO_SERVICE_URL: http://mantenimiento_service:8003
+      REPORTES_SERVICE_URL: http://reportes_service:8004
+      AGENT_SERVICE_URL: http://agent_service:8005
+    depends_on:
+      - equipos_service
+    ports:
+      - "8000:8000"
+    networks:
+      - backend_network
+
+  frontend:
+    build: ./frontend_streamlit
+    container_name: ti_frontend
+    environment:
+      API_GATEWAY_URL: http://api_gateway:8000
+    depends_on:
+      - api_gateway
+    ports:
+      - "8501:8501"
+    networks:
+      - backend_network
+
+networks:
+  backend_network:
+
+volumes:
+  db_data:
